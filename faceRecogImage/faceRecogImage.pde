@@ -1,200 +1,137 @@
 import gab.opencv.*;
 import processing.video.*;
 import java.awt.*;
+import java.util.Arrays;
 
-String[] fname = {"face1.jpg",          // Black man;    1380 x 920
-                  "face2.jpg",          // White woman;  1000 x 714
-                  "face3.jpg",          // Mustache man; 1000 x 714
-                  "face4.jpg"           // Celeberties;  1920 x 1094
+String[] fname = {"face1.jpg",          // Black man;       1380 x 920
+                  "face2.jpg",          // White woman;     1000 x 714
+                  "face3.jpg",          // Mustache man;    1000 x 714
+                  "face4.jpg",          // Celeberties;     1920 x 1094
+                  "face5.jpg",          // Chalamet 1;      193 x 261
+                  "face6.jpg",          // Chalamet 2;      1000 x 755
+                  "face7.jpg",          // Matt Frewer;     1000 x 1000
+                  "face8.jpg",          // Max Headroom;    480 x 360
+                  "face9.jpg",          // Eminem Headroom; 600 x 600
+                  "face10.jpg",         // Eminem;          1080 x 600  
                  };
-PImage img1, img2;
-Rectangle[] faces1, eyes1, noses1, mouths1, faces2, eyes2, noses2, mouths2;
+PImage img;
+Rectangle[] faces, eyes, noses, mouths;
 OpenCV opencvFace, opencvEye, opencvNose, opencvMouth;
-ArrayList<profile> profileList1 = new ArrayList<>();
-ArrayList<profile> profileList2 = new ArrayList<>();
-boolean displayUnplaced;
-float dist;
+ArrayList<profile> profileList = new ArrayList<>();
+ArrayList<person> personList = new ArrayList<>();
+ArrayList<person> storedProfileList = new ArrayList<>();
+JSONArray persons;
+String jname = "persons.json";
+int countThreshold = 19;
+float delta = 0.25;
 
 void setup() {
   size(1920, 1094);
-  img1 = loadImage(fname[0]);
-  img2 = loadImage(fname[2]);
-  windowResize(img1.width + img2.width, img1.height + img2.height);
+  img = loadImage(fname[5]);
+  windowResize(img.width, img.height);
+  
+  PFont font = createFont("Arial", 24);
+  textFont(font);
   
   // Load the OpenCV objects and detect all facial features in the image
-  opencvFace = new OpenCV(this, img1);
+  opencvFace = new OpenCV(this, width, height);
   opencvFace.loadCascade(OpenCV.CASCADE_FRONTALFACE);
-  faces1 = faceRecognition(opencvFace, img1);
+  faces = faceRecognition(opencvFace, img);
   
-  opencvEye = new OpenCV(this, img1);
+  opencvEye = new OpenCV(this, width, height);
   opencvEye.loadCascade(OpenCV.CASCADE_EYE);
-  eyes1 = featureRecognition(opencvEye, img1);
+  eyes = featureRecognition(opencvEye, img);
   
-  opencvNose = new OpenCV(this, img1);
+  opencvNose = new OpenCV(this, width, height);
   opencvNose.loadCascade(OpenCV.CASCADE_NOSE);
-  noses1 = featureRecognition(opencvNose, img1);
+  noses = featureRecognition(opencvNose, img);
   
-  opencvMouth = new OpenCV(this, img1);
+  opencvMouth = new OpenCV(this, width, height);
   opencvMouth.loadCascade(OpenCV.CASCADE_MOUTH);
-  mouths1 = featureRecognition(opencvMouth, img1);
+  mouths = featureRecognition(opencvMouth, img);
   
-  opencvFace = new OpenCV(this, img2);
-  opencvFace.loadCascade(OpenCV.CASCADE_FRONTALFACE);
-  faces2 = faceRecognition(opencvFace, img2);
+  println("faces: ", faces.length);
+  println("eyes: ", eyes.length);
+  println("noses: ", noses.length);
+  println("mouths: ", mouths.length);
   
-  opencvEye = new OpenCV(this, img2);
-  opencvEye.loadCascade(OpenCV.CASCADE_EYE);
-  eyes2 = featureRecognition(opencvEye, img2);
-  
-  opencvNose = new OpenCV(this, img2);
-  opencvNose.loadCascade(OpenCV.CASCADE_NOSE);
-  noses2 = featureRecognition(opencvNose, img2);
-  
-  opencvMouth = new OpenCV(this, img2);
-  opencvMouth.loadCascade(OpenCV.CASCADE_MOUTH);
-  mouths2 = featureRecognition(opencvMouth, img2);
-  
-  for (int i = 0; i < faces1.length; i++) {
-    profileList1.add(createProfile(faces1[i], eyes1, noses1, mouths1));
+  persons = loadJSONArray(jname);
+  for (int i = 0; i < persons.size(); i++) {
+    JSONObject dataPoint = persons.getJSONObject(i);
+    person x = new person(dataPoint);
+    personList.add(i, x);
   }
   
-  for (int i = 0; i < faces2.length; i++) {
-    profileList2.add(createProfile(faces2[i], eyes2, noses2, mouths2));
+  for (int i = 0; i < faces.length; i++) {      // Classifies all of the features detected into profiles for each individual on screen
+    profileList.add(createProfile(faces[i], eyes, noses, mouths));
   }
-
   
-  if (profileList1.size() > 0) {
-    profile prof = profileList1.get(0);
-    println("Face 1 Profile:");
+  for (int i = 0; i < profileList.size(); i++) {
+    println("\nProfile ", i);
+    profile prof = profileList.get(i);
     println("Head: " + prof.getFace());
     println("Left Eye: " + prof.getLeftEye());
     println("Right Eye: " + prof.getRightEye());
     println("Nose: " + prof.getNose());
-    println("Mouth: " + prof.getMouth());
-  } else {
-    println("No face detected");
-  }
-  
-  if (profileList2.size() > 0) {
-    profile prof = profileList2.get(0);
-    println("Face 2 Profile:");
-    println("Head: " + prof.getFace());
-    println("Left Eye: " + prof.getLeftEye());
-    println("Right Eye: " + prof.getRightEye());
-    println("Nose: " + prof.getNose());
-    println("Mouth: " + prof.getMouth());
-  } else {
-    println("No face detected");
-  }
-  
-  compareImages();
-}
-
-
-void compareImages() {
-  if (profileList1.size() > 0 && profileList2.size() > 0) {
-    profile p1 = profileList1.get(0);
-    profile p2 = profileList2.get(0);
+    println("Mouth: " + prof.getMouth() + "\n");
     
-    dist = compareProfiles(p1, p2, img1, img2);
-    println("Euclidean distance between faces: " + dist);
-  } else {
-    println("One or both profile lists are empty.");
+    // Compare the face data to the face data stored in the JSON
+    person x = new person(prof, "Current");
+    int[] counts = new int[personList.size()];
+    String[] nameList = new String[personList.size()];
+    for (int ii = 0; ii < personList.size(); ii++) {
+      person p = personList.get(ii);
+      int count = comparePersons(x, p);
+      println(p.getName(), ": ", count, "/ 28 features match\n");
+      counts[ii] = count;
+      nameList[ii] = p.getName() + ": " + count + "/ 28";
+    }
+    int max = -1;
+    for (int ii = 0; ii < counts.length; ii++) {
+      if (counts[ii] >= countThreshold) {
+        if (max == -1) max = ii;
+        else if (counts[ii] > counts[max]) max = ii;
+      }
+    }
+    if (max != -1) prof.setName(nameList[max]);
   }
 }
-
-
 
 void draw() {
-  image(img1, 0, 0);
-  for (int i = 0; i < profileList1.size(); i++) {
-    drawProfile(profileList1.get(i));
-  }
+  image(img, 0, 0);
   
-  image(img2, img1.width, 0);
-  for (int i = 0; i < profileList2.size(); i++) {
-    drawProfileOffset(profileList2.get(i), img1.width);  // Shift right by img1's width
-  }
-  
-  fill(255, 0, 0);
-  textSize(20);
-  text("Euclidean distance between faces: " + dist, width/2, height/4);
-  if (dist <= 250) {
-    text("Almost certainly same person", width/2, height/4 + 25);
-  } else if (dist <= 400) {
-    text("Possibly the same person", width/2, height/4 + 25);
-  } else {
-    text("Different people", width/2, height/4 + 25);
-  }
-}
-
-void drawProfile(profile prof) {
-  drawFeatures(prof, 0);
-}
-
-void drawProfileOffset(profile prof, int xOffset) {
-  drawFeatures(prof, xOffset);
-}
-
-void drawFeatures(profile prof, int offsetX) {
-  noFill();
-  stroke(0, 255, 0);
-  strokeWeight(3);
-  Rectangle head = prof.getFace();
-  rect(head.x + offsetX, head.y, head.width, head.height);
-  
-  stroke(0, 255, 255);
-  strokeWeight(2);
-  rect(prof.getLeftEye().x + offsetX, prof.getLeftEye().y, prof.getLeftEye().width, prof.getLeftEye().height);
-  rect(prof.getRightEye().x + offsetX, prof.getRightEye().y, prof.getRightEye().width, prof.getRightEye().height);
-  
-  stroke(255, 0, 255);
-  Rectangle nose = prof.getNose();
-  rect(nose.x + offsetX, nose.y, nose.width, nose.height);
-  
-  stroke(255, 255, 0);
-  Rectangle mouth = prof.getMouth();
-  rect(mouth.x + offsetX, mouth.y, mouth.width, mouth.height);
-  
-    if (displayUnplaced) {      // Displays all of the features that were filtered out of the profiles
-    for (int i = 0; i < eyes1.length; i++) {
-      stroke(0, 255, 255, 150);
-      strokeWeight(2);
-      rect(eyes1[i].x, eyes1[i].y, eyes1[i].width, eyes1[i].height);
-    }
+  for (int i = 0; i < profileList.size(); i++) {      // Iterates through all profiles and displays all of their features
+    profile prof = profileList.get(i);
+    noFill();
+    stroke(0, 255, 0);
+    strokeWeight(3);
+    Rectangle head = prof.getFace();
+    rect(head.x, head.y, head.width, head.height);
+    String name = prof.getName();
+    float nameX = head.x + head.width - textWidth(name);
+    float nameY = head.y + head.height - (textAscent() + textDescent());
+    fill(0, 255, 0);
+    rect(nameX, nameY, textWidth(name), textAscent() + textDescent());
+    fill(0);
+    text(name, nameX, nameY + (textAscent() + textDescent()));
+    noFill();
     
-    for (int i = 0; i < noses1.length; i++) {
-      stroke(255, 0, 255, 150);
-      strokeWeight(2);
-      rect(noses1[i].x, noses1[i].y, noses1[i].width, noses1[i].height);
-    }
+    stroke(0, 255, 255);
+    strokeWeight(2);
+    Rectangle lEye = prof.getLeftEye();
+    Rectangle rEye = prof.getRightEye();
+    rect(lEye.x, lEye.y, lEye.width, lEye.height);
+    rect(rEye.x, rEye.y, rEye.width, rEye.height);
     
-    for (int i = 0; i < mouths1.length; i++) {
-      stroke(255, 255, 0, 150);
-      strokeWeight(2);
-      rect(mouths1[i].x, mouths1[i].y, mouths1[i].width, mouths1[i].height);
-    }
+    stroke(255, 0, 255);
+    Rectangle nose = prof.getNose();
+    rect(nose.x, nose.y, nose.width, nose.height);
     
-    for (int i = 0; i < eyes2.length; i++) {
-      stroke(0, 255, 255, 150);
-      strokeWeight(2);
-      rect(eyes2[i].x, eyes2[i].y, eyes2[i].width, eyes2[i].height);
-    }
-    
-    for (int i = 0; i < noses2.length; i++) {
-      stroke(255, 0, 255, 150);
-      strokeWeight(2);
-      rect(noses2[i].x, noses2[i].y, noses2[i].width, noses2[i].height);
-    }
-    
-    for (int i = 0; i < mouths2.length; i++) {
-      stroke(255, 255, 0, 150);
-      strokeWeight(2);
-      rect(mouths2[i].x, mouths2[i].y, mouths2[i].width, mouths2[i].height);
-    }
+    stroke(255, 255, 0);
+    Rectangle mouth = prof.getMouth();
+    rect(mouth.x, mouth.y, mouth.width, mouth.height);
   }
 }
-
 
 
 Rectangle[] faceRecognition(OpenCV cascade, PImage img) {        // Detects the faces within the image
@@ -226,8 +163,8 @@ profile createProfile(Rectangle f, Rectangle[] e, Rectangle[] n, Rectangle[] m) 
   }
   
   Rectangle interiorNose = f;
-  for (int i = 0; i < n.length; i++) {         // Adds a nose located within the bottom 2/3rds of the face box to InteriorEyes
-    if (f.contains(n[i]) & n[i].y > f.y + f.height*0.33) interiorNose = n[i];
+  for (int i = 0; i < n.length; i++) {         // Adds a nose located within the middle 1/3rd of the face box to InteriorEyes
+    if (f.contains(n[i]) & n[i].y > f.y + f.height*0.33 & n[i].y < f.y + f.height * 0.5) interiorNose = n[i];
   }
   
   Rectangle interiorMouth = f;
@@ -244,45 +181,85 @@ profile createProfile(Rectangle f, Rectangle[] e, Rectangle[] n, Rectangle[] m) 
   return y;
 }
 
-color averageColor(PImage img, Rectangle r) { // Compute the average color for all features in profile
-  img.loadPixels();
+
+int comparePersons(person p1, person p2) {
   int count = 0;
-  float sumR = 0, sumG = 0, sumB = 0;
   
-  for (int i = r.x; i < r.x + r.width; i++) {
-    for (int j = r.y; j < r.y + r.height; j++) {
-      if (i >= 0 && j >= 0 && i < img.width && j < img.height) {
-        color c = img.get(i, j);
-        sumR += red(c);
-        sumG += green(c);
-        sumB += blue(c);
-        count++;
-      }
+  float[] v1 = p1.getVerticalDistance(); 
+  float[] v2 = p2.getVerticalDistance();
+  println("Vertical Distance: ");
+  for (int i = 0; i < v1.length; i++) {
+    print(v1[i], "-", v2[i]);
+    if (v1[i] != 0   &   v1[i] <= v2[i] * (1 + delta)   &   v1[i] >= v2[i] * (1 - delta)) {
+      print("!");
+      count += 1;
     }
+  println();
   }
-  if (count == 0) return color(0);  // Avoid divide by zero
-  return color(sumR / count, sumG / count, sumB / count);
+  
+  float[] h1 = p1.getHorizontalDistance(); 
+  float[] h2 = p2.getHorizontalDistance();
+  println("Horizontal Distance: ");
+  for (int i = 0; i < h1.length; i++) {
+    print(h1[i], "-", h2[i]);
+    if (h1[i] != 0   &   h1[i] <= h2[i] * (1 + delta)   &   h1[i] >= h2[i] * (1 - delta)) {
+      print("!");
+      count += 1;
+    }
+  println();
+  }
+  
+  float[] x1 = p1.getXPos(); 
+  float[] x2 = p2.getXPos();
+  println("X Position: ");
+  for (int i = 0; i < x1.length; i++) {
+    print(x1[i], "-", x2[i]);
+    if (x1[i] != 0   &   x1[i] <= x2[i] * (1 + delta)   &   x1[i] >= x2[i] * (1 - delta)) {
+      print("!");
+      count += 1;
+    }
+  println();
+  }
+  
+  float[] y1 = p1.getYPos(); 
+  float[] y2 = p2.getYPos();
+  println("Y Position: ");
+  for (int i = 0; i < y1.length; i++) {
+    print(y1[i], "-", y2[i]);
+    if (y1[i] != 0   &   y1[i] <= y2[i] * (1 + delta)   &   y1[i] >= y2[i] * (1 - delta)) {
+      print("!");
+      count += 1;
+    }
+  println();
+  }
+  
+  float[] t1 = p1.getFeatureHeight(); 
+  float[] t2 = p2.getFeatureHeight();
+  println("Feature Height: ");
+  for (int i = 0; i < t1.length; i++) {
+    print(t1[i], "-", t2[i]);
+    if (t1[i] != 0   &   t1[i] <= t2[i] * (1 + delta)   &   t1[i] >= t2[i] * (1 - delta)) {
+      print("!");
+      count += 1;
+    }
+  println();
+  }
+  
+  float[] w1 = p1.getFeatureWidth(); 
+  float[] w2 = p2.getFeatureWidth();
+  println("Feature Width: ");
+  for (int i = 0; i < w1.length; i++) {
+    print(w1[i], "-", w2[i]);
+    if (w1[i] != 0   &   w1[i] <= w2[i] * (1 + delta)   &   w1[i] >= w2[i] * (1 - delta)) {
+      print("!");
+      count += 1;
+    }
+  println();
+  }
+  return count;
 }
 
-
-float cdist(color c1, color c2) { // calculate Euclidean distance between c1 and c2
-  float d = 0;  //Distance
-  float r1 = red(c1), g1 = green(c1), b1 = blue(c1);
-  float r2 = red(c2), g2 = green(c2), b2 = blue(c2);
-  d = sqrt(sq(r2 - r1) + sq(g2 - g1) + sq(b2 - b1));
-  return d;
-}
-
-float compareProfiles(profile p1, profile p2, PImage img1, PImage img2) { // Compare two profiles
-  float d = 0;
-  d += cdist(averageColor(img1, p1.getLeftEye()), averageColor(img2, p2.getLeftEye()));
-  d += cdist(averageColor(img1, p1.getRightEye()), averageColor(img2, p2.getRightEye()));
-  d += cdist(averageColor(img1, p1.getNose()), averageColor(img2, p2.getNose()));
-  d += cdist(averageColor(img1, p1.getMouth()), averageColor(img2, p2.getMouth()));
-  d += cdist(averageColor(img1, p1.getFace()), averageColor(img2, p2.getFace()));
-  return d;
-}
 
 void keyPressed() {
-  if (key == 't') displayUnplaced = !displayUnplaced;    // Displays the features that were filtered out
+  
 }

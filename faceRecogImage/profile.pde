@@ -4,6 +4,7 @@ class profile {
   Rectangle rEye;
   Rectangle nose;
   Rectangle mouth;
+  String name;
   
   profile(Rectangle f, Rectangle le, Rectangle re, Rectangle n, Rectangle m) {
     face = f;
@@ -11,6 +12,7 @@ class profile {
     lEye = le;
     rEye = re;
     mouth = m;
+    name = "Unknown";
   }
   
   Rectangle getFace() {
@@ -31,5 +33,13 @@ class profile {
   
   Rectangle getMouth() {
     return mouth;
+  }
+  
+  void setName(String n) {
+    name = n;
+  }
+  
+  String getName() {
+    return name;
   }
 }
